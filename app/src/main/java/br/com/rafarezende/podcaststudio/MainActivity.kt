@@ -21,6 +21,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import java.io.File
@@ -31,10 +32,6 @@ import java.util.Locale
 // ComponentActivity e subclasse direta de android.app.Activity (sem AppCompat
 // e sem Compose) e e quem expoe o onBackPressedDispatcher usado abaixo.
 class MainActivity : ComponentActivity() {
-
-    companion object {
-        private const val REQUEST_PERMISSIONS = 1001
-    }
 
     private lateinit var etTitle: EditText
     private lateinit var tvTimer: TextView
@@ -55,6 +52,27 @@ class MainActivity : ComponentActivity() {
     private lateinit var libraryAdapter: ArrayAdapter<String>
 
     private var pendingStart = false
+
+    // Pedido de permissoes pelo Activity Result API (o override classico de
+    // onRequestPermissionsResult nao existe no ComponentActivity e quebrou
+    // o primeiro build).
+    private val permissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { results ->
+        if (results[Manifest.permission.RECORD_AUDIO] == true) {
+            if (pendingStart) {
+                pendingStart = false
+                startRecording()
+            }
+        } else {
+            pendingStart = false
+            Toast.makeText(
+                this,
+                "Sem permissão de microfone não dá pra gravar.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
     private var player: MediaPlayer? = null
     private var playerDialog: AlertDialog? = null
@@ -256,29 +274,7 @@ class MainActivity : ComponentActivity() {
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
         }
         if (perms.isNotEmpty()) {
-            requestPermissions(perms.toTypedArray(), REQUEST_PERMISSIONS)
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode != REQUEST_PERMISSIONS) return
-        if (hasRecordPermission()) {
-            if (pendingStart) {
-                pendingStart = false
-                startRecording()
-            }
-        } else {
-            pendingStart = false
-            Toast.makeText(
-                this,
-                "Sem permissão de microfone não dá pra gravar.",
-                Toast.LENGTH_LONG
-            ).show()
+            permissionLauncher.launch(perms.toTypedArray())
         }
     }
 
