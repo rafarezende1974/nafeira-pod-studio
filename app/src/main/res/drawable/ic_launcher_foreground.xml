@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- sound bars left -->
+    <path
+        android:fillColor="#E9452B"
+        android:pathData="M20,46 h5 v16 h-5 z" />
+    <path
+        android:fillColor="#E9452B"
+        android:pathData="M29,40 h5 v28 h-5 z" />
+    <!-- sound bars right -->
+    <path
+        android:fillColor="#E9452B"
+        android:pathData="M83,46 h5 v16 h-5 z" />
+    <path
+        android:fillColor="#E9452B"
+        android:pathData="M74,40 h5 v28 h-5 z" />
+    <!-- microphone body -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M47,18 h14 a7,7 0 0 1 7,7 v20 a14,14 0 0 1 -28,0 v-20 a7,7 0 0 1 7,-7 z" />
+    <!-- microphone arc -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M38,40 a16,18 0 0 0 32,0"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+    <!-- stand -->
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M54,60 v14"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M42,76 h24"
+        android:strokeWidth="4"
+        android:strokeColor="#FFFFFF"
+        android:strokeLineCap="round" />
+</vector>
