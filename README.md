@@ -98,7 +98,7 @@ gravações "desapareciam" (estavam lá, só não apareciam).
 ## Como compilar (GitHub Actions)
 
 O projeto **não** inclui o Gradle Wrapper de propósito — o workflow
-provisiona o Gradle 8.7, igual aos outros apps do Rafael (Teleprompter,
+provisiona o Gradle 8.11.1, igual aos outros apps do Rafael (Teleprompter,
 PromptBox).
 
 1. Suba este projeto para um repositório no GitHub (branch `main`).
@@ -116,11 +116,30 @@ PromptBox).
 Também dá pra rodar o build manualmente a qualquer momento pela aba
 **Actions → Build APK → Run workflow**.
 
+## Publicação na Play 🚀
+
+- O formato de envio pra Google Play é o **AAB** (`app-release.aab`),
+  gerado pelo **workflow de release** — o conteúdo de
+  **`WORKFLOW-RELEASE.yml.txt`** (raiz do projeto) colado sobre o
+  `.github/workflows/build-apk.yml`, no lugar do workflow comum.
+- O workflow roda `gradle assembleDebug bundleRelease` e gera dois
+  artefatos: **`podestudio-apk`** (debug, pra testar no aparelho) e
+  **`podestudio-aab-play`** (o AAB assinado, pra subir na Play).
+- A assinatura usa a **mesma chave de upload DX Labs** do
+  Teleprompter Profissional, lida de dois segredos do repositório
+  (Settings → Secrets and variables → Actions):
+  **`UPLOAD_KEYSTORE_B64`** (a chave em base64) e
+  **`UPLOAD_KEYSTORE_PASSWORD`** (a senha). Sem o primeiro segredo,
+  o workflow **falha de propósito** — pra nunca sair AAB sem
+  assinatura em silêncio.
+- **Pacote definitivo da Play: `br.com.dxlabs.podestudio`** — depois
+  de criado o app no Console com esse pacote, ele não muda mais.
+
 ## Dados técnicos
 
-- Pacote: `br.com.rafarezende.podcaststudio`
-- Android mínimo: 8.0 (API 26) · Alvo: Android 14 (API 34)
-- Kotlin + Views/XML (sem Compose), AGP 8.5.2, Kotlin 2.0.20
+- Pacote: `br.com.dxlabs.podestudio`
+- Android mínimo: 8.0 (API 26) · Alvo: Android 16 (API 36)
+- Kotlin + Views/XML (sem Compose), AGP 8.10.1, Kotlin 2.0.21
 - Gravações salvas em: pasta do app em `Music/recordings`
   (área externa privada do app — desinstalar o app apaga as gravações;
   compartilhe/exporte o que for importante!)

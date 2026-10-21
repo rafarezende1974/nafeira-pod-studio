@@ -1,0 +1,72 @@
+# ============================================================
+# Pod Estúdio - workflow de build do APK + AAB (Google Play)
+#
+# COMO USAR: este workflow SUBSTITUI o atual. No site do
+# GitHub, edite o arquivo .github/workflows/build-apk.yml,
+# apague TODO o conteudo dele e cole o conteudo DESTE arquivo.
+# (Este arquivo .txt fica na raiz do projeto de proposito:
+#  o push via API nao tem permissao de Workflows.)
+#
+# Antes de rodar, crie os segredos no repo (Settings ->
+# Secrets and variables -> Actions):
+#   UPLOAD_KEYSTORE_B64       chave de upload DX Labs em base64
+#   UPLOAD_KEYSTORE_PASSWORD  senha da chave
+# (a MESMA chave de upload usada no Teleprompter Profissional)
+#
+# Artefatos gerados:
+#   podestudio-apk      app-debug.apk (teste direto no aparelho)
+#   podestudio-aab-play app-release.aab assinado (pra Play)
+# ============================================================
+
+name: Build APK + AAB (Play)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Instalar SDK Android 36
+        run: |
+          export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin"
+          yes | sdkmanager --licenses > /dev/null
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Preparar chave de assinatura
+        env:
+          KS_B64: ${{ secrets.UPLOAD_KEYSTORE_B64 }}
+        run: |
+          if [ -z "$KS_B64" ]; then echo "Segredo UPLOAD_KEYSTORE_B64 nao configurado"; exit 1; fi
+          echo "$KS_B64" | base64 -d > /tmp/upload-key.p12
+
+      - name: Build APK (debug) e AAB (release assinado)
+        env:
+          KEYSTORE_PATH: /tmp/upload-key.p12
+          KEYSTORE_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: upload
+          KEY_PASSWORD: ${{ secrets.UPLOAD_KEYSTORE_PASSWORD }}
+        run: gradle assembleDebug bundleRelease --console=plain
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: podestudio-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: podestudio-aab-play
+          path: app/build/outputs/bundle/release/app-release.aab
