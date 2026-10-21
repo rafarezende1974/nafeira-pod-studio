@@ -14,6 +14,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.view.View
 import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -56,6 +57,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var gridPads: GridLayout
     private lateinit var seekFx: SeekBar
     private lateinit var btnStopFx: Button
+    private lateinit var tabRecord: Button
+    private lateinit var tabLibrary: Button
+    private lateinit var pageRecord: View
+    private lateinit var pageLibrary: View
+
+    // Ultimo estado visto do servico: serve pra avisar "gravacao salva"
+    // so na transicao de gravando/pausado -> parado (V2.1).
+    private var lastServiceState = RecordingService.State.IDLE
 
     private val padButtons = ArrayList<Button>()
     private lateinit var sfxStore: SfxStore
@@ -110,10 +119,21 @@ class MainActivity : ComponentActivity() {
     private val serviceListener = object : RecordingService.Listener {
         override fun onStateChanged() {
             runOnUiThread {
+                val state = RecordingService.state
                 updateUi()
-                if (RecordingService.state == RecordingService.State.IDLE) {
+                if (state == RecordingService.State.IDLE) {
+                    if (lastServiceState != RecordingService.State.IDLE) {
+                        // Acabou de parar uma gravacao: avisa onde ela esta
+                        // (a biblioteca agora fica na outra aba — V2.1).
+                        Toast.makeText(
+                            this@MainActivity,
+                            "Gravação salva — veja na aba Biblioteca",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                     refreshLibrary()
                 }
+                lastServiceState = state
             }
         }
 
@@ -142,6 +162,17 @@ class MainActivity : ComponentActivity() {
         gridPads = findViewById(R.id.gridPads)
         seekFx = findViewById(R.id.seekFx)
         btnStopFx = findViewById(R.id.btnStopFx)
+        tabRecord = findViewById(R.id.tabRecord)
+        tabLibrary = findViewById(R.id.tabLibrary)
+        pageRecord = findViewById(R.id.pageRecord)
+        pageLibrary = findViewById(R.id.pageLibrary)
+
+        tabRecord.setOnClickListener { showPage(false) }
+        tabLibrary.setOnClickListener {
+            showPage(true)
+            refreshLibrary()
+        }
+        showPage(false)
 
         sfxStore = SfxStore(this)
         buildPads()
@@ -337,6 +368,18 @@ class MainActivity : ComponentActivity() {
     // UI
     // ---------------------------------------------------------------
 
+    /** Alterna entre as paginas Gravar e Biblioteca (abas da V2.1). */
+    private fun showPage(library: Boolean) {
+        pageRecord.visibility = if (library) View.GONE else View.VISIBLE
+        pageLibrary.visibility = if (library) View.VISIBLE else View.GONE
+        val accent = ContextCompat.getColor(this, R.color.accent)
+        val inactive = ContextCompat.getColor(this, R.color.surface_light)
+        tabRecord.backgroundTintList =
+            ColorStateList.valueOf(if (library) inactive else accent)
+        tabLibrary.backgroundTintList =
+            ColorStateList.valueOf(if (library) accent else inactive)
+    }
+
     private fun updateUi() {
         val state = RecordingService.state
         when (state) {
@@ -418,18 +461,27 @@ class MainActivity : ComponentActivity() {
         gridPads.removeAllViews()
         padButtons.clear()
         val density = resources.displayMetrics.density
-        val heightPx = (54 * density).toInt()
+        // Altura UNIFORME pra todos os pads (V2.1): nome longo nao pode
+        // quebrar em 2 linhas nem mudar a altura da fileira (era a queixa
+        // do "botao desalinhado" no celular).
+        val heightPx = (52 * density).toInt()
         val marginPx = (4 * density).toInt()
+        val padHPx = (4 * density).toInt()
         for (index in 0 until SfxStore.PAD_COUNT) {
             val button = Button(this)
             val params = GridLayout.LayoutParams()
             params.width = 0
             params.height = heightPx
             params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+            params.rowSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
             params.setMargins(marginPx, marginPx, marginPx, marginPx)
             button.layoutParams = params
             button.setTextColor(Color.WHITE)
-            button.textSize = 13f
+            button.textSize = 12f
+            button.setSingleLine(true)
+            button.maxLines = 1
+            button.ellipsize = android.text.TextUtils.TruncateAt.END
+            button.setPadding(padHPx, 0, padHPx, 0)
             button.setOnClickListener { onPadClicked(index) }
             button.setOnLongClickListener {
                 showPadCustomization(index)
@@ -701,6 +753,14 @@ class MainActivity : ComponentActivity() {
         libraryAdapter.notifyDataSetChanged()
         tvEmpty.visibility = if (files.isEmpty()) TextView.VISIBLE else TextView.GONE
         lvLibrary.visibility = if (files.isEmpty()) ListView.GONE else ListView.VISIBLE
+        // Contador de gravacoes no rotulo da aba (V2.1).
+        if (::tabLibrary.isInitialized) {
+            tabLibrary.text = if (files.isEmpty()) {
+                "📚 Biblioteca"
+            } else {
+                "📚 Biblioteca (${files.size})"
+            }
+        }
     }
 
     private fun describeFile(file: File): String {

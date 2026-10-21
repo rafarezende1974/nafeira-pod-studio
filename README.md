@@ -64,6 +64,24 @@ codifica em AAC (`MediaCodec` + `MediaMuxer`) pro mesmo `.m4a` de
 antes. Pausar/continuar, medidor de nível e gravação sem limite
 continuam iguais.
 
+## V2.1 — Telas em abas 📑
+
+Correção de layout pro celular: tudo numa tela só passava da altura
+em telas menores, a lista da biblioteca era espremida até sumir e as
+gravações "desapareciam" (estavam lá, só não apareciam).
+
+- A tela agora tem **duas abas no topo: ⏺ Gravar e 📚 Biblioteca**
+  (a aba da biblioteca mostra o número de gravações).
+- **Gravar**: todos os controles (título, cronômetro, microfone,
+  botões, mesa de efeitos e volume) numa página com rolagem — tudo
+  alcançável em qualquer tela.
+- **Biblioteca**: a lista ocupa a **tela cheia**, com ouvir,
+  compartilhar, renomear e apagar como antes.
+- Ao parar uma gravação, um aviso confirma: *"Gravação salva —
+  veja na aba Biblioteca"*.
+- Pads da mesa com **altura uniforme e nome em uma linha só** —
+  acabou o botão desalinhado.
+
 ## O que fica pra depois
 
 - Cortar/aparar o áudio dentro do app
