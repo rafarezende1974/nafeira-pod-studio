@@ -5,17 +5,23 @@ import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
 import android.media.MediaPlayer
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.OpenableColumns
 import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.GridLayout
 import android.widget.ListView
 import android.widget.ProgressBar
+import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
@@ -24,6 +30,10 @@ import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import br.com.rafarezende.podcaststudio.audio.EffectPlayer
+import br.com.rafarezende.podcaststudio.audio.PadConfig
+import br.com.rafarezende.podcaststudio.audio.PadKind
+import br.com.rafarezende.podcaststudio.audio.SfxStore
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -43,6 +53,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var btnPause: Button
     private lateinit var btnStop: Button
     private lateinit var lvLibrary: ListView
+    private lateinit var gridPads: GridLayout
+    private lateinit var seekFx: SeekBar
+    private lateinit var btnStopFx: Button
+
+    private val padButtons = ArrayList<Button>()
+    private lateinit var sfxStore: SfxStore
+    private val effectPlayer = EffectPlayer()
+    private var pendingPadIndex = -1
 
     private val deviceIds = mutableListOf<Int>()
     private val deviceNames = mutableListOf<String>()
@@ -71,6 +89,18 @@ class MainActivity : ComponentActivity() {
                 "Sem permissão de microfone não dá pra gravar.",
                 Toast.LENGTH_LONG
             ).show()
+        }
+    }
+
+    // Seletor de arquivo de som pro pad (OpenDocument, sem permissao de
+    // armazenamento). O resultado e tratado em handlePadFilePicked().
+    private val padFileLauncher = registerForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        val index = pendingPadIndex
+        pendingPadIndex = -1
+        if (uri != null && index >= 0) {
+            handlePadFilePicked(index, uri)
         }
     }
 
@@ -109,6 +139,30 @@ class MainActivity : ComponentActivity() {
         btnPause = findViewById(R.id.btnPause)
         btnStop = findViewById(R.id.btnStop)
         lvLibrary = findViewById(R.id.lvLibrary)
+        gridPads = findViewById(R.id.gridPads)
+        seekFx = findViewById(R.id.seekFx)
+        btnStopFx = findViewById(R.id.btnStopFx)
+
+        sfxStore = SfxStore(this)
+        buildPads()
+
+        val prefs = getSharedPreferences("podcast_studio", Context.MODE_PRIVATE)
+        val savedFx = prefs.getInt("fx_volume", 80).coerceIn(0, 100)
+        seekFx.progress = savedFx
+        applyFxVolume(savedFx)
+        seekFx.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                applyFxVolume(progress)
+                prefs.edit().putInt("fx_volume", progress).apply()
+            }
+
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        btnStopFx.setOnClickListener {
+            effectPlayer.stop()
+            sendServiceAction(RecordingService.ACTION_STOP_EFFECTS)
+        }
 
         if (etTitle.text.toString().isBlank()) {
             etTitle.setText(defaultTitle())
@@ -170,6 +224,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         stopPlayer()
+        effectPlayer.stop()
         if (RecordingService.listener === serviceListener) {
             RecordingService.listener = null
         }
@@ -347,6 +402,285 @@ class MainActivity : ComponentActivity() {
         if (idx >= 0) {
             spDevice.setSelection(idx)
         }
+    }
+
+    // ---------------------------------------------------------------
+    // Mesa de efeitos (soundboard)
+    // ---------------------------------------------------------------
+
+    private fun applyFxVolume(progress: Int) {
+        val vol = progress.coerceIn(0, 100) / 100f
+        RecordingService.effectsVolume = vol
+        effectPlayer.volume = vol
+    }
+
+    private fun buildPads() {
+        gridPads.removeAllViews()
+        padButtons.clear()
+        val density = resources.displayMetrics.density
+        val heightPx = (54 * density).toInt()
+        val marginPx = (4 * density).toInt()
+        for (index in 0 until SfxStore.PAD_COUNT) {
+            val button = Button(this)
+            val params = GridLayout.LayoutParams()
+            params.width = 0
+            params.height = heightPx
+            params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+            params.setMargins(marginPx, marginPx, marginPx, marginPx)
+            button.layoutParams = params
+            button.setTextColor(Color.WHITE)
+            button.textSize = 13f
+            button.setOnClickListener { onPadClicked(index) }
+            button.setOnLongClickListener {
+                showPadCustomization(index)
+                true
+            }
+            gridPads.addView(button)
+            padButtons.add(button)
+            refreshPadButton(index)
+        }
+    }
+
+    private fun refreshPadButton(index: Int) {
+        val button = padButtons.getOrNull(index) ?: return
+        val config = sfxStore.get(index)
+        button.text = config.name
+        button.backgroundTintList = ColorStateList.valueOf(config.color)
+    }
+
+    private fun refreshAllPads() {
+        for (index in 0 until SfxStore.PAD_COUNT) {
+            refreshPadButton(index)
+        }
+    }
+
+    private fun onPadClicked(index: Int) {
+        val config = sfxStore.get(index)
+        when (RecordingService.state) {
+            RecordingService.State.RECORDING -> {
+                if (config.kind == PadKind.EMPTY) {
+                    Toast.makeText(
+                        this,
+                        "Pad vazio — segure pra escolher um som.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    return
+                }
+                val intent = Intent(this, RecordingService::class.java).apply {
+                    action = RecordingService.ACTION_TRIGGER_PAD
+                    putExtra(RecordingService.EXTRA_PAD_INDEX, index)
+                }
+                try {
+                    startService(intent)
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Não foi possível tocar o efeito.", Toast.LENGTH_SHORT).show()
+                }
+            }
+            RecordingService.State.PAUSED -> {
+                Toast.makeText(
+                    this,
+                    "Continue a gravação pra o efeito entrar nela.",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+            RecordingService.State.IDLE -> {
+                if (config.kind == PadKind.EMPTY) {
+                    openPadFilePicker(index)
+                } else {
+                    playPadPreview(index)
+                }
+            }
+        }
+    }
+
+    /** Preview do pad fora da gravacao (decodifica em thread de fundo). */
+    private fun playPadPreview(index: Int) {
+        Thread {
+            val pcm = try {
+                sfxStore.pcmFor(index)
+            } catch (e: Exception) {
+                null
+            }
+            runOnUiThread {
+                if (pcm != null) {
+                    effectPlayer.play(pcm)
+                } else {
+                    Toast.makeText(
+                        this,
+                        "Não consegui tocar esse som.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun showPadCustomization(index: Int) {
+        val config = sfxStore.get(index)
+        val options = ArrayList<String>()
+        options.add("Trocar som (arquivo do aparelho)")
+        options.add("Renomear")
+        options.add("Trocar cor")
+        if (index < 8) {
+            options.add("Restaurar padrão")
+        } else if (config.kind == PadKind.FILE) {
+            options.add("Esvaziar pad")
+        }
+        AlertDialog.Builder(this)
+            .setTitle(config.name)
+            .setItems(options.toTypedArray()) { _, which ->
+                when (which) {
+                    0 -> openPadFilePicker(index)
+                    1 -> renamePad(index)
+                    2 -> pickPadColor(index)
+                    3 -> {
+                        if (index < 8) resetPad(index) else clearPad(index)
+                    }
+                }
+            }
+            .setNegativeButton("Fechar", null)
+            .show()
+    }
+
+    private fun openPadFilePicker(index: Int) {
+        pendingPadIndex = index
+        try {
+            padFileLauncher.launch(arrayOf("audio/*"))
+        } catch (e: Exception) {
+            pendingPadIndex = -1
+            Toast.makeText(this, "Nenhum seletor de arquivos disponível.", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Copia o arquivo escolhido pro pad e valida decodificando (fundo). */
+    private fun handlePadFilePicked(index: Int, uri: Uri) {
+        val previous = sfxStore.get(index)
+        val displayName = queryDisplayName(uri)
+        val extension = extensionFromName(displayName)
+        Toast.makeText(this, "Importando som…", Toast.LENGTH_SHORT).show()
+        Thread {
+            var importedName: String? = null
+            var ok = false
+            try {
+                val file = sfxStore.importFile(index, uri, extension)
+                importedName = file.name
+                val probe = PadConfig(
+                    name = previous.name,
+                    kind = PadKind.FILE,
+                    builtinId = null,
+                    fileName = file.name,
+                    color = previous.color
+                )
+                sfxStore.save(index, probe)
+                // Valida: so vale se decodificar.
+                ok = sfxStore.pcmFor(index) != null
+                if (ok) {
+                    val newName = if (previous.kind == PadKind.EMPTY ||
+                        previous.name == "+ Som"
+                    ) {
+                        displayName.substringBeforeLast('.').ifBlank { previous.name }
+                    } else {
+                        previous.name
+                    }
+                    sfxStore.save(index, probe.copy(name = newName))
+                }
+            } catch (e: Exception) {
+                ok = false
+            }
+            if (!ok) {
+                // Desfaz: volta a configuracao anterior e apaga a copia.
+                sfxStore.save(index, previous)
+                if (importedName != null) {
+                    sfxStore.deletePadFile(index, importedName)
+                }
+            }
+            val success = ok
+            runOnUiThread {
+                refreshPadButton(index)
+                if (success) {
+                    Toast.makeText(this, "Som do pad atualizado.", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(
+                        this,
+                        "Não consegui usar esse arquivo de áudio.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }.start()
+    }
+
+    private fun queryDisplayName(uri: Uri): String {
+        var name = "som"
+        try {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val idx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (idx >= 0 && cursor.moveToFirst()) {
+                    val value = cursor.getString(idx)
+                    if (!value.isNullOrBlank()) name = value
+                }
+            }
+        } catch (e: Exception) {
+            // mantem o nome generico
+        }
+        return name
+    }
+
+    private fun extensionFromName(displayName: String): String {
+        val ext = displayName.substringAfterLast('.', "")
+        return ext.ifBlank { "audio" }
+    }
+
+    private fun renamePad(index: Int) {
+        val config = sfxStore.get(index)
+        val edit = EditText(this).apply {
+            setText(config.name)
+            setSelection(config.name.length)
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Renomear pad")
+            .setView(edit)
+            .setPositiveButton("Salvar") { _, _ ->
+                val newName = edit.text.toString().trim()
+                if (newName.isNotBlank()) {
+                    sfxStore.save(index, config.copy(name = newName))
+                    refreshPadButton(index)
+                }
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun pickPadColor(index: Int) {
+        val config = sfxStore.get(index)
+        AlertDialog.Builder(this)
+            .setTitle("Cor do pad")
+            .setItems(SfxStore.COLOR_NAMES) { _, which ->
+                sfxStore.save(index, config.copy(color = SfxStore.COLORS[which]))
+                refreshPadButton(index)
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
+    }
+
+    private fun resetPad(index: Int) {
+        val current = sfxStore.get(index)
+        if (current.kind == PadKind.FILE) {
+            sfxStore.deletePadFile(index, current.fileName)
+        }
+        sfxStore.save(index, SfxStore.defaultConfig(index))
+        refreshPadButton(index)
+        Toast.makeText(this, "Pad restaurado.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun clearPad(index: Int) {
+        val current = sfxStore.get(index)
+        if (current.kind == PadKind.FILE) {
+            sfxStore.deletePadFile(index, current.fileName)
+        }
+        sfxStore.save(index, SfxStore.defaultConfig(index))
+        refreshPadButton(index)
+        Toast.makeText(this, "Pad esvaziado.", Toast.LENGTH_SHORT).show()
     }
 
     // ---------------------------------------------------------------

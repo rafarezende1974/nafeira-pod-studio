@@ -8,21 +8,23 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
-import android.media.AudioManager
-import android.media.MediaRecorder
 import android.os.Build
 import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.os.PowerManager
-import android.os.SystemClock
 import android.util.Log
+import br.com.rafarezende.podcaststudio.audio.RecorderEngine
+import br.com.rafarezende.podcaststudio.audio.SfxStore
 import java.io.File
 
 /**
  * Servico em primeiro plano que grava audio SEM limite de tempo.
  * O limite passa a ser apenas o espaco livre do aparelho.
+ *
+ * V2: o motor e o RecorderEngine (AudioRecord + mixagem + AAC), que
+ * mistura os efeitos da mesa de som digitalmente na gravacao.
  */
 class RecordingService : Service() {
 
@@ -40,9 +42,14 @@ class RecordingService : Service() {
         const val ACTION_PAUSE = "br.com.rafarezende.podcaststudio.action.PAUSE"
         const val ACTION_RESUME = "br.com.rafarezende.podcaststudio.action.RESUME"
         const val ACTION_STOP = "br.com.rafarezende.podcaststudio.action.STOP"
+        const val ACTION_TRIGGER_PAD =
+            "br.com.rafarezende.podcaststudio.action.TRIGGER_PAD"
+        const val ACTION_STOP_EFFECTS =
+            "br.com.rafarezende.podcaststudio.action.STOP_EFFECTS"
 
         const val EXTRA_FILE_NAME = "extra_file_name"
         const val EXTRA_DEVICE_ID = "extra_device_id"
+        const val EXTRA_PAD_INDEX = "extra_pad_index"
 
         private const val NOTIFICATION_ID = 1001
         private const val CHANNEL_ID = "recording_channel"
@@ -57,20 +64,25 @@ class RecordingService : Service() {
         @Volatile
         var startTime: Long = 0L
 
-        /** Inicio do trecho atual (elapsedRealtime), usado no cronometro. */
-        @Volatile
-        var segmentStartMillis: Long = 0L
-
-        /** Tempo acumulado dos trechos ja pausados (o cronometro pausa junto). */
+        /** Tempo gravado ate a ultima pausa (sincronizado do engine). */
         @Volatile
         var accumulatedMillis: Long = 0L
+
+        /** Volume dos efeitos (0f..1f), lido pelo engine a cada frame. */
+        @Volatile
+        var effectsVolume: Float = 0.8f
 
         @Volatile
         var listener: Listener? = null
 
+        /** Instancia ativa do motor (so existe gravando/pausado). */
+        @Volatile
+        var engine: RecorderEngine? = null
+
         fun elapsedMillis(): Long {
-            return if (state == State.RECORDING && segmentStartMillis > 0L) {
-                accumulatedMillis + (SystemClock.elapsedRealtime() - segmentStartMillis)
+            val eng = engine
+            return if (eng != null && state != State.IDLE) {
+                eng.elapsedMillis()
             } else {
                 accumulatedMillis
             }
@@ -87,14 +99,17 @@ class RecordingService : Service() {
         }
     }
 
-    private var recorder: MediaRecorder? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private val handler = Handler(Looper.getMainLooper())
 
     private val tickRunnable = object : Runnable {
         override fun run() {
             if (state != State.IDLE) {
-                val amplitude = if (state == State.RECORDING) currentAmplitude() else 0
+                val amplitude = if (state == State.RECORDING) {
+                    engine?.currentPeak() ?: 0
+                } else {
+                    0
+                }
                 try {
                     listener?.onTick(elapsedMillis(), amplitude)
                 } catch (e: Exception) {
@@ -122,6 +137,11 @@ class RecordingService : Service() {
             ACTION_PAUSE -> pauseRecording()
             ACTION_RESUME -> resumeRecording()
             ACTION_STOP -> stopRecording()
+            ACTION_TRIGGER_PAD -> {
+                val padIndex = intent.getIntExtra(EXTRA_PAD_INDEX, -1)
+                if (padIndex >= 0) triggerPad(padIndex)
+            }
+            ACTION_STOP_EFFECTS -> engine?.stopEffects()
             else -> {
                 // Reinicio do sistema etc.: se nao esta gravando, nao fica preso.
                 if (state == State.IDLE) {
@@ -135,11 +155,11 @@ class RecordingService : Service() {
     override fun onDestroy() {
         handler.removeCallbacks(tickRunnable)
         try {
-            recorder?.stop()
+            engine?.stopAndJoin()
         } catch (e: Exception) {
-            Log.w(TAG, "erro ao parar recorder no onDestroy", e)
+            Log.w(TAG, "erro ao parar engine no onDestroy", e)
         }
-        releaseRecorder()
+        engine = null
         releaseWakeLock()
         if (state != State.IDLE) {
             state = State.IDLE
@@ -165,51 +185,29 @@ class RecordingService : Service() {
         val safeName = if (fileName.endsWith(".m4a")) fileName else "$fileName.m4a"
         val file = File(recordingsDir(this), safeName)
 
-        @Suppress("DEPRECATION")
-        val newRecorder = MediaRecorder()
+        val newEngine = RecorderEngine(applicationContext)
+        newEngine.effectsVolume = effectsVolume
         try {
-            newRecorder.setAudioSource(MediaRecorder.AudioSource.MIC)
-            newRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-            newRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-            newRecorder.setAudioSamplingRate(44100)
-            newRecorder.setAudioEncodingBitRate(128000)
-            newRecorder.setAudioChannels(1)
-            newRecorder.setOutputFile(file.absolutePath)
-
-            if (deviceId >= 0 && Build.VERSION.SDK_INT >= 28) {
-                try {
-                    val audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                    val devices = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
-                    val device = devices.firstOrNull { it.id == deviceId }
-                    if (device != null) {
-                        newRecorder.setPreferredDevice(device)
-                    }
-                } catch (e: Exception) {
-                    Log.w(TAG, "setPreferredDevice falhou, usando padrao", e)
-                }
-            }
-
-            newRecorder.prepare()
-            newRecorder.start()
+            newEngine.start(file, deviceId)
         } catch (e: Exception) {
             Log.e(TAG, "falha ao iniciar gravacao", e)
             try {
-                newRecorder.release()
+                newEngine.stopAndJoin()
             } catch (ignored: Exception) {
             }
             if (file.exists()) {
                 file.delete()
             }
+            engine = null
             state = State.IDLE
             notifyStateChanged()
             stopSelf()
             return
         }
 
-        recorder = newRecorder
+        engine = newEngine
         currentFile = file
         startTime = System.currentTimeMillis()
-        segmentStartMillis = SystemClock.elapsedRealtime()
         accumulatedMillis = 0L
         state = State.RECORDING
 
@@ -222,13 +220,14 @@ class RecordingService : Service() {
 
     private fun pauseRecording() {
         if (state != State.RECORDING) return
+        val eng = engine ?: return
         try {
-            recorder?.pause()
+            eng.pause()
         } catch (e: Exception) {
             Log.w(TAG, "pause falhou", e)
             return
         }
-        accumulatedMillis = elapsedMillis()
+        accumulatedMillis = eng.elapsedMillis()
         state = State.PAUSED
         updateNotification("Pausado")
         notifyStateChanged()
@@ -236,13 +235,13 @@ class RecordingService : Service() {
 
     private fun resumeRecording() {
         if (state != State.PAUSED) return
+        val eng = engine ?: return
         try {
-            recorder?.resume()
+            eng.resume()
         } catch (e: Exception) {
             Log.w(TAG, "resume falhou", e)
             return
         }
-        segmentStartMillis = SystemClock.elapsedRealtime()
         state = State.RECORDING
         updateNotification("Gravando…")
         notifyStateChanged()
@@ -254,19 +253,33 @@ class RecordingService : Service() {
             return
         }
         handler.removeCallbacks(tickRunnable)
-        try {
-            recorder?.stop()
-        } catch (e: Exception) {
-            // Arquivo pode ficar curto/corrompido se parar cedo demais;
-            // mantemos o arquivo mesmo assim e apenas registramos.
-            Log.w(TAG, "stop do recorder falhou", e)
+        val eng = engine
+        engine = null
+        if (eng != null) {
+            accumulatedMillis = eng.elapsedMillis()
+            try {
+                // Finaliza o arquivo (EOS + muxer) numa thread separada pra
+                // nao travar a main thread; o servico se encerra no fim.
+                val stopper = Thread {
+                    try {
+                        eng.stopAndJoin()
+                    } catch (e: Exception) {
+                        Log.w(TAG, "stopAndJoin falhou", e)
+                    }
+                }
+                stopper.start()
+                try {
+                    stopper.join(3000)
+                } catch (e: InterruptedException) {
+                    Log.w(TAG, "join do stop interrompido", e)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "stop do engine falhou", e)
+            }
         }
-        releaseRecorder()
         releaseWakeLock()
         state = State.IDLE
-        segmentStartMillis = 0L
-        // accumulatedMillis fica com o total final ate a proxima gravacao.
-        if (android.os.Build.VERSION.SDK_INT >= 24) {
+        if (Build.VERSION.SDK_INT >= 24) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
             @Suppress("DEPRECATION")
@@ -276,21 +289,29 @@ class RecordingService : Service() {
         stopSelf()
     }
 
-    private fun releaseRecorder() {
-        try {
-            recorder?.release()
-        } catch (e: Exception) {
-            Log.w(TAG, "release do recorder falhou", e)
-        }
-        recorder = null
-    }
+    // ---------------------------------------------------------------
+    // Efeitos
+    // ---------------------------------------------------------------
 
-    private fun currentAmplitude(): Int {
-        return try {
-            recorder?.maxAmplitude ?: 0
-        } catch (e: Exception) {
-            0
-        }
+    private fun triggerPad(padIndex: Int) {
+        if (state != State.RECORDING) return
+        val eng = engine ?: return
+        eng.effectsVolume = effectsVolume
+        // A resolucao do PCM de pad de fabrica e sintetica (rapida) e a de
+        // arquivo usa cache; ainda assim rodamos fora da main thread por
+        // seguranca (primeira decodificacao de um arquivo pode demorar).
+        Thread {
+            try {
+                val pcm = SfxStore(applicationContext).pcmFor(padIndex)
+                if (pcm != null) {
+                    eng.triggerEffect(pcm)
+                } else {
+                    Log.w(TAG, "pad $padIndex sem som")
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "triggerPad $padIndex falhou", e)
+            }
+        }.start()
     }
 
     // ---------------------------------------------------------------
@@ -308,6 +329,7 @@ class RecordingService : Service() {
             wakeLock?.setReferenceCounted(false)
             // Sem timeout: a gravacao nao tem limite de tempo.
             // O WakeLock e liberado no STOP / onDestroy.
+            @Suppress("DEPRECATION")
             wakeLock?.acquire()
         } catch (e: Exception) {
             Log.w(TAG, "acquire WakeLock falhou", e)

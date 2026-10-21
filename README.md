@@ -24,10 +24,50 @@ do aparelho (1 hora de gravação ocupa aproximadamente 55 MB).
 - ▶️ **Ouvir**, **compartilhar** (WhatsApp, Drive, e-mail…),
   **renomear** e **apagar** cada gravação, direto da biblioteca.
 
-## O que fica pra depois (V2)
+## V2 — Mesa de efeitos sonoros 🎛️
+
+Igual ao Spreaker Studio: uma grade de **12 botões (pads)** de efeitos
+que entram **misturados digitalmente na gravação**, na hora, junto com
+a sua voz — não é o alto-falante sendo captado pelo microfone.
+
+- 🔊 **8 sons de fábrica** gerados pelo próprio app (sem arquivos):
+  aplausos, risadas, campainha, ding, "ba dum tss", buzina, transição
+  (whoosh) e vinheta.
+- 🎚️ **Volume dos efeitos** separado, com botão **Parar efeitos**.
+- 🎧 Fora da gravação, tocar num pad **ouve o som** (preview).
+
+### Como personalizar um pad
+
+**Segure o pad** (toque longo) para abrir as opções:
+
+- **Trocar som (arquivo do aparelho)** — escolha qualquer áudio
+  (MP3, WAV, M4A…) do celular/tablet; ele é copiado pro app e vale
+  pra esse pad. Dá pra deixar um pad com a vinheta do seu podcast!
+- **Renomear** — mude o texto do botão.
+- **Trocar cor** — 8 cores pra organizar a mesa do seu jeito.
+- **Restaurar padrão** (pads de fábrica) ou **Esvaziar pad**
+  (pads com arquivo seu).
+
+Toque curto num pad vazio (fora da gravação) também abre o seletor
+de arquivo direto.
+
+> ⚠️ **Use fone de ouvido ao tocar efeitos gravando.** O efeito entra
+> na gravação pela mixagem digital, mas se ele sair no alto-falante,
+> o microfone capta o som de novo pelo ar e o efeito fica duplicado.
+
+### Motor de gravação novo
+
+A V2 trocou o gravador pronto do Android (`MediaRecorder`, que só
+capta o microfone) por um **motor próprio de mixagem**: captura em
+PCM (`AudioRecord`), soma voz + efeitos com controle de ganho e
+codifica em AAC (`MediaCodec` + `MediaMuxer`) pro mesmo `.m4a` de
+antes. Pausar/continuar, medidor de nível e gravação sem limite
+continuam iguais.
+
+## O que fica pra depois
 
 - Cortar/aparar o áudio dentro do app
-- Música de fundo com *auto-ducking* ao vivo e efeitos sonoros
+- Música de fundo com *auto-ducking* ao vivo
 - Publicar direto no Spotify / Apple Podcasts
 
 ## Como compilar (GitHub Actions)
