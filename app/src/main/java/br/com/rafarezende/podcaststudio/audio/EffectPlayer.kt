@@ -14,6 +14,9 @@ class EffectPlayer {
 
     companion object {
         private const val TAG = "EffectPlayer"
+
+        /** Mesmo formato interno da mesa: PCM 44100 Hz mono (SfxDecoder). */
+        const val SAMPLE_RATE = 44100
     }
 
     @Volatile
@@ -110,7 +113,7 @@ class EffectPlayer {
 
     private fun createTrack(): AudioTrack {
         val minBuffer = AudioTrack.getMinBufferSize(
-            SfxSynth.SAMPLE_RATE,
+            SAMPLE_RATE,
             AudioFormat.CHANNEL_OUT_MONO,
             AudioFormat.ENCODING_PCM_16BIT
         )
@@ -120,7 +123,7 @@ class EffectPlayer {
             .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
             .build()
         val format = AudioFormat.Builder()
-            .setSampleRate(SfxSynth.SAMPLE_RATE)
+            .setSampleRate(SAMPLE_RATE)
             .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
             .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
             .build()

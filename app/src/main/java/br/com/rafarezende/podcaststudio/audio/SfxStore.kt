@@ -7,12 +7,11 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 
-enum class PadKind { BUILTIN, FILE, EMPTY }
+enum class PadKind { FILE, EMPTY }
 
 data class PadConfig(
     val name: String,
     val kind: PadKind,
-    val builtinId: SfxSynth.BuiltinId?,
     val fileName: String?,
     val color: Int
 )
@@ -54,18 +53,9 @@ class SfxStore(context: Context) {
         private val DEFAULT_COLOR_IDX = intArrayOf(0, 2, 1, 4, 5, 0, 3, 6, 7, 7, 7, 7)
 
         fun defaultConfig(index: Int): PadConfig {
+            // Todos os pads comecam vazios: nenhum som pre-carregado.
             val color = COLORS[DEFAULT_COLOR_IDX[index.coerceIn(0, PAD_COUNT - 1)]]
-            return when (index) {
-                0 -> PadConfig("👏 Aplausos", PadKind.BUILTIN, SfxSynth.BuiltinId.APPLAUSE, null, color)
-                1 -> PadConfig("😂 Risadas", PadKind.BUILTIN, SfxSynth.BuiltinId.LAUGH, null, color)
-                2 -> PadConfig("🔔 Campainha", PadKind.BUILTIN, SfxSynth.BuiltinId.BELL, null, color)
-                3 -> PadConfig("✨ Ding", PadKind.BUILTIN, SfxSynth.BuiltinId.DING, null, color)
-                4 -> PadConfig("🥁 Ba dum tss", PadKind.BUILTIN, SfxSynth.BuiltinId.STING, null, color)
-                5 -> PadConfig("📯 Buzina", PadKind.BUILTIN, SfxSynth.BuiltinId.HORN, null, color)
-                6 -> PadConfig("💨 Transição", PadKind.BUILTIN, SfxSynth.BuiltinId.WHOOSH, null, color)
-                7 -> PadConfig("🎬 Vinheta", PadKind.BUILTIN, SfxSynth.BuiltinId.JINGLE, null, color)
-                else -> PadConfig("+ Som", PadKind.EMPTY, null, null, color)
-            }
+            return PadConfig("+ Som", PadKind.EMPTY, null, color)
         }
     }
 
@@ -74,28 +64,29 @@ class SfxStore(context: Context) {
         return try {
             val json = JSONObject(raw)
             val kindName = json.optString("kind", "EMPTY")
+            val savedColor = json.optInt("color", defaultConfig(index).color)
+            // Migracao (V2.2): versoes antigas tinham sons de fabrica
+            // (kind "BUILTIN"). Como nao ha mais nenhum som pre-carregado,
+            // esses pads viram vazios — uma vez, ja persistido. Pads FILE
+            // (sons do proprio usuario) sao preservados como estao.
+            if (kindName == "BUILTIN") {
+                val converted = PadConfig("+ Som", PadKind.EMPTY, null, savedColor)
+                save(index, converted)
+                return converted
+            }
             val kind = try {
                 PadKind.valueOf(kindName)
             } catch (e: Exception) {
+                // Strings desconhecidas (ex.: formatos futuros/antigos)
+                // sao tratadas como pad vazio, sem quebrar o parse.
                 PadKind.EMPTY
-            }
-            val builtinName = json.optString("builtin", "")
-            val builtin = if (builtinName.isNotBlank()) {
-                try {
-                    SfxSynth.BuiltinId.valueOf(builtinName)
-                } catch (e: Exception) {
-                    null
-                }
-            } else {
-                null
             }
             val fileName = json.optString("file", "").ifBlank { null }
             PadConfig(
                 name = json.optString("name", defaultConfig(index).name),
                 kind = kind,
-                builtinId = builtin,
                 fileName = fileName,
-                color = json.optInt("color", defaultConfig(index).color)
+                color = savedColor
             )
         } catch (e: Exception) {
             Log.w(TAG, "config do pad $index ilegivel, usando padrao", e)
@@ -110,7 +101,6 @@ class SfxStore(context: Context) {
             val json = JSONObject()
             json.put("name", config.name)
             json.put("kind", config.kind.name)
-            json.put("builtin", config.builtinId?.name ?: "")
             json.put("file", config.fileName ?: "")
             json.put("color", config.color)
             prefs.edit().putString(key(index), json.toString()).apply()
@@ -120,14 +110,13 @@ class SfxStore(context: Context) {
     }
 
     /**
-     * Resolve o PCM do pad. BUILTIN: sintetiza (rapido). FILE: decodifica
-     * com cache — pode demorar na primeira vez, chame fora da UI thread.
+     * Resolve o PCM do pad. EMPTY: sem som (null). FILE: decodifica com
+     * cache — pode demorar na primeira vez, chame fora da UI thread.
      */
     fun pcmFor(index: Int): ShortArray? {
         val config = get(index)
         return when (config.kind) {
             PadKind.EMPTY -> null
-            PadKind.BUILTIN -> config.builtinId?.let { SfxSynth.get(it) }
             PadKind.FILE -> {
                 val fileName = config.fileName ?: return null
                 val file = File(sfxDir(), fileName)
@@ -194,7 +183,7 @@ class SfxStore(context: Context) {
         return target
     }
 
-    /** Apaga a copia de arquivo de um pad (ao esvaziar/restaurar/trocar). */
+    /** Apaga a copia de arquivo de um pad (ao esvaziar/trocar). */
     fun deletePadFile(index: Int, fileName: String?) {
         if (fileName.isNullOrBlank()) return
         try {

@@ -297,9 +297,9 @@ class RecordingService : Service() {
         if (state != State.RECORDING) return
         val eng = engine ?: return
         eng.effectsVolume = effectsVolume
-        // A resolucao do PCM de pad de fabrica e sintetica (rapida) e a de
-        // arquivo usa cache; ainda assim rodamos fora da main thread por
-        // seguranca (primeira decodificacao de um arquivo pode demorar).
+        // A resolucao do PCM do pad (arquivo do usuario) usa cache; ainda
+        // assim rodamos fora da main thread por seguranca (a primeira
+        // decodificacao de um arquivo pode demorar).
         Thread {
             try {
                 val pcm = SfxStore(applicationContext).pcmFor(padIndex)
@@ -382,7 +382,7 @@ class RecordingService : Service() {
             Notification.Builder(this)
         }
         return builder
-            .setContentTitle("Na Feira Pod Studio")
+            .setContentTitle("Pod Estúdio")
             .setContentText(text)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentIntent(pendingIntent)

@@ -573,9 +573,7 @@ class MainActivity : ComponentActivity() {
         options.add("Trocar som (arquivo do aparelho)")
         options.add("Renomear")
         options.add("Trocar cor")
-        if (index < 8) {
-            options.add("Restaurar padrão")
-        } else if (config.kind == PadKind.FILE) {
+        if (config.kind == PadKind.FILE) {
             options.add("Esvaziar pad")
         }
         AlertDialog.Builder(this)
@@ -585,9 +583,7 @@ class MainActivity : ComponentActivity() {
                     0 -> openPadFilePicker(index)
                     1 -> renamePad(index)
                     2 -> pickPadColor(index)
-                    3 -> {
-                        if (index < 8) resetPad(index) else clearPad(index)
-                    }
+                    3 -> clearPad(index)
                 }
             }
             .setNegativeButton("Fechar", null)
@@ -619,7 +615,6 @@ class MainActivity : ComponentActivity() {
                 val probe = PadConfig(
                     name = previous.name,
                     kind = PadKind.FILE,
-                    builtinId = null,
                     fileName = file.name,
                     color = previous.color
                 )
@@ -713,16 +708,6 @@ class MainActivity : ComponentActivity() {
             }
             .setNegativeButton("Cancelar", null)
             .show()
-    }
-
-    private fun resetPad(index: Int) {
-        val current = sfxStore.get(index)
-        if (current.kind == PadKind.FILE) {
-            sfxStore.deletePadFile(index, current.fileName)
-        }
-        sfxStore.save(index, SfxStore.defaultConfig(index))
-        refreshPadButton(index)
-        Toast.makeText(this, "Pad restaurado.", Toast.LENGTH_SHORT).show()
     }
 
     private fun clearPad(index: Int) {

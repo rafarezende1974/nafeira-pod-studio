@@ -1,6 +1,6 @@
-# Na Feira Pod Studio 🎙️
+# Pod Estúdio 🎙️
 
-App Android de gravação de podcast do **Rafael Rezende / Na Feira Pod**,
+App Android de gravação de podcast do **Rafael Rezende**,
 no estilo do Spreaker Studio — mas **sem limite de tempo de gravação**.
 
 No Spreaker Studio a gravação para aos 15 minutos. Aqui não: a gravação
@@ -30,9 +30,9 @@ Igual ao Spreaker Studio: uma grade de **12 botões (pads)** de efeitos
 que entram **misturados digitalmente na gravação**, na hora, junto com
 a sua voz — não é o alto-falante sendo captado pelo microfone.
 
-- 🔊 **8 sons de fábrica** gerados pelo próprio app (sem arquivos):
-  aplausos, risadas, campainha, ding, "ba dum tss", buzina, transição
-  (whoosh) e vinheta.
+- 🔊 **Nenhum som pré-carregado**: todos os 12 pads começam vazios
+  ("+ Som") e **você coloca os seus sons** — aplausos, campainha,
+  vinheta do podcast, o que quiser, a partir de arquivos do aparelho.
 - 🎚️ **Volume dos efeitos** separado, com botão **Parar efeitos**.
 - 🎧 Fora da gravação, tocar num pad **ouve o som** (preview).
 
@@ -45,8 +45,7 @@ a sua voz — não é o alto-falante sendo captado pelo microfone.
   pra esse pad. Dá pra deixar um pad com a vinheta do seu podcast!
 - **Renomear** — mude o texto do botão.
 - **Trocar cor** — 8 cores pra organizar a mesa do seu jeito.
-- **Restaurar padrão** (pads de fábrica) ou **Esvaziar pad**
-  (pads com arquivo seu).
+- **Esvaziar pad** — remove o som do pad e ele volta a ficar "+ Som".
 
 Toque curto num pad vazio (fora da gravação) também abre o seletor
 de arquivo direto.
@@ -81,6 +80,14 @@ gravações "desapareciam" (estavam lá, só não apareciam).
   veja na aba Biblioteca"*.
 - Pads da mesa com **altura uniforme e nome em uma linha só** —
   acabou o botão desalinhado.
+
+## V2.2 — Novo nome e mesa 100% sua 🏷️
+
+- O app agora se chama **Pod Estúdio**.
+- **Fim dos sons de fábrica**: todos os 12 pads começam vazios e são
+  personalizáveis com os seus arquivos. Quem já usava o app: pads que
+  tinham som de fábrica viram vazios na atualização, e os pads com
+  sons colocados por você são **mantidos** exatamente como estavam.
 
 ## O que fica pra depois
 
@@ -119,4 +126,4 @@ Também dá pra rodar o build manualmente a qualquer momento pela aba
   compartilhe/exporte o que for importante!)
 
 ---
-Feito para o **Na Feira Pod** · DX Labs · #digaxiiiss
+**Pod Estúdio** · DX Labs · #digaxiiiss
