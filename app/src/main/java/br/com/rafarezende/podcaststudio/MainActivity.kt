@@ -372,15 +372,16 @@ class MainActivity : ComponentActivity() {
     private fun showPage(library: Boolean) {
         pageRecord.visibility = if (library) View.GONE else View.VISIBLE
         pageLibrary.visibility = if (library) View.VISIBLE else View.GONE
-        val accent = ContextCompat.getColor(this, R.color.accent)
         val logoGreen = ContextCompat.getColor(this, R.color.logo_green)
         val inactive = ContextCompat.getColor(this, R.color.surface_light)
-        // So o Gravar fica vermelho; a aba Biblioteca selecionada usa o verde da logo.
+        // So o botao Gravar fica vermelho; a aba selecionada (Gravar ou
+        // Biblioteca) usa o verde da logo, a nao selecionada fica cinza.
         tabRecord.backgroundTintList =
-            ColorStateList.valueOf(if (library) inactive else accent)
+            ColorStateList.valueOf(if (library) inactive else logoGreen)
         tabLibrary.backgroundTintList =
             ColorStateList.valueOf(if (library) logoGreen else inactive)
         // Texto escuro no verde lima (branco nao teria contraste).
+        tabRecord.setTextColor(if (library) Color.WHITE else Color.BLACK)
         tabLibrary.setTextColor(if (library) Color.BLACK else Color.WHITE)
     }
 
@@ -502,6 +503,12 @@ class MainActivity : ComponentActivity() {
         val config = sfxStore.get(index)
         button.text = config.name
         button.backgroundTintList = ColorStateList.valueOf(config.color)
+        // Texto escuro em cores claras (verde da logo, amarelo) e branco
+        // nas escuras, pra o nome do pad continuar legivel.
+        val luminance = 0.299 * Color.red(config.color) +
+            0.587 * Color.green(config.color) +
+            0.114 * Color.blue(config.color)
+        button.setTextColor(if (luminance > 160) Color.BLACK else Color.WHITE)
     }
 
     private fun refreshAllPads() {

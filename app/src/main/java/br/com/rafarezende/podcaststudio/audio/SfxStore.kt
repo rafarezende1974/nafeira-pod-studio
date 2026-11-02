@@ -33,7 +33,7 @@ class SfxStore(context: Context) {
 
         val COLOR_NAMES = arrayOf(
             "Vermelho", "Laranja", "Amarelo", "Verde",
-            "Azul", "Roxo", "Rosa", "Cinza"
+            "Azul", "Roxo", "Rosa", "Cinza", "Verde logo"
         )
 
         val COLORS = intArrayOf(
@@ -44,13 +44,15 @@ class SfxStore(context: Context) {
             0xFF2B7DE9.toInt(), // azul
             0xFF8B5CF6.toInt(), // roxo
             0xFFE94F9A.toInt(), // rosa
-            0xFF77778A.toInt()  // cinza
+            0xFF77778A.toInt(), // cinza
+            0xFFB8FB2A.toInt()  // verde da logo
         )
 
         /** Cache de PCM decodificado: chave = caminho + lastModified. */
         private val pcmCache = HashMap<String, ShortArray>()
 
-        private val DEFAULT_COLOR_IDX = intArrayOf(0, 2, 1, 4, 5, 0, 3, 6, 7, 7, 7, 7)
+        // Pads comecam no verde da logo; segurar o pad troca a cor.
+        private val DEFAULT_COLOR_IDX = intArrayOf(8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8)
 
         fun defaultConfig(index: Int): PadConfig {
             // Todos os pads comecam vazios: nenhum som pre-carregado.
