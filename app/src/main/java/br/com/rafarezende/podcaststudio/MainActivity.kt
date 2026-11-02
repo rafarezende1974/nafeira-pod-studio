@@ -373,11 +373,15 @@ class MainActivity : ComponentActivity() {
         pageRecord.visibility = if (library) View.GONE else View.VISIBLE
         pageLibrary.visibility = if (library) View.VISIBLE else View.GONE
         val accent = ContextCompat.getColor(this, R.color.accent)
+        val logoGreen = ContextCompat.getColor(this, R.color.logo_green)
         val inactive = ContextCompat.getColor(this, R.color.surface_light)
+        // So o Gravar fica vermelho; a aba Biblioteca selecionada usa o verde da logo.
         tabRecord.backgroundTintList =
             ColorStateList.valueOf(if (library) inactive else accent)
         tabLibrary.backgroundTintList =
-            ColorStateList.valueOf(if (library) accent else inactive)
+            ColorStateList.valueOf(if (library) logoGreen else inactive)
+        // Texto escuro no verde lima (branco nao teria contraste).
+        tabLibrary.setTextColor(if (library) Color.BLACK else Color.WHITE)
     }
 
     private fun updateUi() {

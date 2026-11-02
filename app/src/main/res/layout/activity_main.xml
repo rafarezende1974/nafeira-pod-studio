@@ -13,7 +13,7 @@
     <ImageView
         android:layout_width="wrap_content"
         android:layout_height="68dp"
-        android:layout_marginStart="8dp"
+        android:layout_marginStart="20dp"
         android:layout_marginTop="12dp"
         android:adjustViewBounds="true"
         android:contentDescription="Pod Estúdio"
@@ -167,10 +167,10 @@
                         android:layout_marginStart="3dp"
                         android:layout_marginEnd="3dp"
                         android:layout_weight="1"
-                        android:backgroundTint="@color/surface_light"
+                        android:backgroundTint="@color/logo_green"
                         android:enabled="false"
                         android:text="Pausar"
-                        android:textColor="#FFFFFF"
+                        android:textColor="#0B0B12"
                         android:textSize="15sp" />
 
                     <Button
@@ -179,10 +179,10 @@
                         android:layout_height="56dp"
                         android:layout_marginStart="6dp"
                         android:layout_weight="1"
-                        android:backgroundTint="@color/surface_light"
+                        android:backgroundTint="@color/logo_green"
                         android:enabled="false"
                         android:text="■ Parar"
-                        android:textColor="#FFFFFF"
+                        android:textColor="#0B0B12"
                         android:textSize="15sp" />
                 </LinearLayout>
 
@@ -229,9 +229,9 @@
                         android:id="@+id/btnStopFx"
                         android:layout_width="wrap_content"
                         android:layout_height="44dp"
-                        android:backgroundTint="@color/surface_light"
+                        android:backgroundTint="@color/logo_green"
                         android:text="Parar efeitos"
-                        android:textColor="#FFFFFF"
+                        android:textColor="#0B0B12"
                         android:textSize="13sp" />
                 </LinearLayout>
             </LinearLayout>

@@ -4,6 +4,7 @@
     <color name="surface">#1A1A26</color>
     <color name="surface_light">#262636</color>
     <color name="accent">#E9452B</color>
+    <color name="logo_green">#B8FB2A</color>
     <color name="accent_dark">#B92F1B</color>
     <color name="text_primary">#FFFFFF</color>
     <color name="text_secondary">#B0B0C0</color>
