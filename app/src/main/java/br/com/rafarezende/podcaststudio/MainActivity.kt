@@ -21,7 +21,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.GridLayout
 import android.widget.ListView
-import android.widget.ProgressBar
 import android.widget.SeekBar
 import android.widget.Spinner
 import android.widget.TextView
@@ -32,6 +31,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import br.com.rafarezende.podcaststudio.audio.EffectPlayer
+import br.com.rafarezende.podcaststudio.audio.LevelMeterView
+import br.com.rafarezende.podcaststudio.audio.WaveformView
 import br.com.rafarezende.podcaststudio.audio.PadConfig
 import br.com.rafarezende.podcaststudio.audio.PadKind
 import br.com.rafarezende.podcaststudio.audio.SfxStore
@@ -48,7 +49,11 @@ class MainActivity : ComponentActivity() {
     private lateinit var tvTimer: TextView
     private lateinit var tvStatus: TextView
     private lateinit var tvEmpty: TextView
-    private lateinit var pbLevel: ProgressBar
+    private lateinit var pbLevel: LevelMeterView
+    private lateinit var waveformView: WaveformView
+    private lateinit var tvRec: TextView
+    private lateinit var tvPauseLabel: TextView
+    private lateinit var tvFxVolumePct: TextView
     private lateinit var spDevice: Spinner
     private lateinit var btnRecord: Button
     private lateinit var btnPause: Button
@@ -140,7 +145,8 @@ class MainActivity : ComponentActivity() {
         override fun onTick(elapsedMillis: Long, maxAmplitude: Int) {
             runOnUiThread {
                 tvTimer.text = formatElapsed(elapsedMillis)
-                pbLevel.progress = maxAmplitude
+                pbLevel.setLevel(maxAmplitude)
+                waveformView.setAmplitude(maxAmplitude)
             }
         }
     }
@@ -154,6 +160,10 @@ class MainActivity : ComponentActivity() {
         tvStatus = findViewById(R.id.tvStatus)
         tvEmpty = findViewById(R.id.tvEmpty)
         pbLevel = findViewById(R.id.pbLevel)
+        waveformView = findViewById(R.id.waveform)
+        tvRec = findViewById(R.id.tvRec)
+        tvPauseLabel = findViewById(R.id.tvPauseLabel)
+        tvFxVolumePct = findViewById(R.id.tvFxVolumePct)
         spDevice = findViewById(R.id.spDevice)
         btnRecord = findViewById(R.id.btnRecord)
         btnPause = findViewById(R.id.btnPause)
@@ -181,9 +191,11 @@ class MainActivity : ComponentActivity() {
         val savedFx = prefs.getInt("fx_volume", 80).coerceIn(0, 100)
         seekFx.progress = savedFx
         applyFxVolume(savedFx)
+        tvFxVolumePct.text = "$savedFx%"
         seekFx.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 applyFxVolume(progress)
+                tvFxVolumePct.text = "$progress%"
                 prefs.edit().putInt("fx_volume", progress).apply()
             }
 
@@ -390,7 +402,7 @@ class MainActivity : ComponentActivity() {
         when (state) {
             RecordingService.State.RECORDING -> {
                 tvStatus.text = "● Gravando — sem limite de tempo"
-                btnPause.text = "Pausar"
+                tvPauseLabel.text = "Pausar"
                 btnRecord.isEnabled = false
                 btnPause.isEnabled = true
                 btnStop.isEnabled = true
@@ -398,23 +410,32 @@ class MainActivity : ComponentActivity() {
             }
             RecordingService.State.PAUSED -> {
                 tvStatus.text = "❚❚ Pausado"
-                btnPause.text = "Continuar"
+                tvPauseLabel.text = "Continuar"
                 btnRecord.isEnabled = false
                 btnPause.isEnabled = true
                 btnStop.isEnabled = true
                 spDevice.isEnabled = false
-                pbLevel.progress = 0
+                pbLevel.setLevel(0)
             }
             RecordingService.State.IDLE -> {
                 tvStatus.text = "Pronto para gravar"
-                btnPause.text = "Pausar"
+                tvPauseLabel.text = "Pausar"
                 btnRecord.isEnabled = true
                 btnPause.isEnabled = false
                 btnStop.isEnabled = false
                 spDevice.isEnabled = true
-                pbLevel.progress = 0
+                pbLevel.setLevel(0)
+                waveformView.reset()
             }
         }
+
+        // Selo REC visível só enquanto grava ou pausa.
+        tvRec.visibility = if (state == RecordingService.State.IDLE) View.GONE else View.VISIBLE
+
+        // Botões redondos: desabilitado fica translúcido.
+        btnRecord.alpha = if (btnRecord.isEnabled) 1f else 0.4f
+        btnPause.alpha = if (btnPause.isEnabled) 1f else 0.4f
+        btnStop.alpha = if (btnStop.isEnabled) 1f else 0.4f
 
         if (state != RecordingService.State.IDLE) {
             window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -501,7 +522,9 @@ class MainActivity : ComponentActivity() {
     private fun refreshPadButton(index: Int) {
         val button = padButtons.getOrNull(index) ?: return
         val config = sfxStore.get(index)
-        button.text = config.name
+        // Pads preenchidos exibem o prefixo musical; vazios continuam "+ Som".
+        // Só a exibição muda — o nome salvo não é alterado.
+        button.text = if (config.kind == PadKind.FILE) "♪ ${config.name}" else config.name
         button.backgroundTintList = ColorStateList.valueOf(config.color)
         // Texto escuro em cores claras (verde da logo, amarelo) e branco
         // nas escuras, pra o nome do pad continuar legivel.
