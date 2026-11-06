@@ -79,22 +79,26 @@
             android:layout_height="match_parent"
             android:fillViewport="true">
 
+            <!-- Filho com match_parent + fillViewport: estica até a altura
+                 da tela (sem faixa preta embaixo); em tela curta mede o
+                 conteúdo e o ScrollView rola normalmente. -->
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:orientation="vertical"
                 android:paddingBottom="8dp">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:layout_weight="1"
                     android:baselineAligned="false"
                     android:orientation="horizontal">
 
                     <!-- Coluna esquerda: episódio + controles -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:layout_marginEnd="6dp"
                         android:layout_weight="1"
                         android:orientation="vertical">
@@ -102,6 +106,7 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:layout_weight="1"
                             android:background="@drawable/bg_card"
                             android:orientation="vertical"
                             android:padding="16dp">
@@ -308,7 +313,7 @@
                     <!-- Coluna direita: efeitos -->
                     <LinearLayout
                         android:layout_width="0dp"
-                        android:layout_height="wrap_content"
+                        android:layout_height="match_parent"
                         android:layout_marginStart="6dp"
                         android:layout_weight="1"
                         android:orientation="vertical">
@@ -316,6 +321,7 @@
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
+                            android:layout_weight="1"
                             android:background="@drawable/bg_card"
                             android:orientation="vertical"
                             android:padding="16dp">
@@ -333,6 +339,7 @@
                                 android:layout_width="match_parent"
                                 android:layout_height="wrap_content"
                                 android:layout_marginTop="8dp"
+                                android:layout_weight="1"
                                 android:columnCount="4" />
 
                             <LinearLayout

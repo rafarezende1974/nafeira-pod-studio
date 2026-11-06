@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.ColorStateList
+import android.content.res.Configuration
 import android.graphics.Color
 import android.media.AudioManager
 import android.media.MediaMetadataRetriever
@@ -14,6 +15,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.RelativeSizeSpan
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
 import android.widget.ArrayAdapter
@@ -487,10 +492,14 @@ class MainActivity : ComponentActivity() {
         gridPads.removeAllViews()
         padButtons.clear()
         val density = resources.displayMetrics.density
-        // Altura UNIFORME pra todos os pads (V2.1): nome longo nao pode
-        // quebrar em 2 linhas nem mudar a altura da fileira (era a queixa
-        // do "botao desalinhado" no celular).
-        val heightPx = (52 * density).toInt()
+        val isLandscape =
+            resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        // Retrato: altura fixa de 78dp. Paisagem: altura 0 + peso nas
+        // linhas e colunas, pra as 3 fileiras dividirem igualmente a
+        // altura do cartão e as 4 colunas a largura. O minimumHeight de
+        // 78dp é o piso: se o cartão não tiver altura definida (tela
+        // curta com rolagem), os pads continuam visíveis com 78dp.
+        val heightPx = if (isLandscape) 0 else (78 * density).toInt()
         val marginPx = (4 * density).toInt()
         val padHPx = (4 * density).toInt()
         for (index in 0 until SfxStore.PAD_COUNT) {
@@ -500,13 +509,17 @@ class MainActivity : ComponentActivity() {
             params.height = heightPx
             params.columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
             params.rowSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+            if (isLandscape) params.setGravity(Gravity.FILL)
             params.setMargins(marginPx, marginPx, marginPx, marginPx)
             button.layoutParams = params
+            button.minimumHeight = (78 * density).toInt()
             button.setTextColor(Color.WHITE)
             button.textSize = 12f
-            button.setSingleLine(true)
-            button.maxLines = 1
+            // 2 linhas em todos os pads (ícone + nome): altura uniforme.
+            button.setLines(2)
+            button.maxLines = 2
             button.ellipsize = android.text.TextUtils.TruncateAt.END
+            button.gravity = Gravity.CENTER
             button.setPadding(padHPx, 0, padHPx, 0)
             button.setOnClickListener { onPadClicked(index) }
             button.setOnLongClickListener {
@@ -522,9 +535,21 @@ class MainActivity : ComponentActivity() {
     private fun refreshPadButton(index: Int) {
         val button = padButtons.getOrNull(index) ?: return
         val config = sfxStore.get(index)
-        // Pads preenchidos exibem o prefixo musical; vazios continuam "+ Som".
-        // Só a exibição muda — o nome salvo não é alterado.
-        button.text = if (config.kind == PadKind.FILE) "♪ ${config.name}" else config.name
+        // Duas linhas: ícone da posição + nome. Pad vazio mostra "+" e
+        // "+ Som". Só a exibição muda — o nome salvo não é alterado.
+        val icon = if (config.kind == PadKind.FILE) {
+            SfxStore.PAD_ICONS[index]
+        } else {
+            "+"
+        }
+        val label = if (config.kind == PadKind.FILE) config.name else "+ Som"
+        val text = SpannableString("$icon\n$label")
+        // Ícone maior que o nome, como no mockup.
+        text.setSpan(
+            RelativeSizeSpan(1.7f), 0, icon.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+        button.text = text
         button.backgroundTintList = ColorStateList.valueOf(config.color)
         // Texto escuro em cores claras (verde da logo, amarelo) e branco
         // nas escuras, pra o nome do pad continuar legivel.
